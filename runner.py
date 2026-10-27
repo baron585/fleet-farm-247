@@ -288,7 +288,7 @@ def run_jio_farm(sweep_count=3):
 # ─────────────────────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(description="24/7 Complete Cloud Fleet Minter")
-    parser.add_argument("--dahl-count", type=int, default=8, help="Target Dahl akun")
+    parser.add_argument("--dahl-count", type=int, default=35, help="Target Dahl akun")
     parser.add_argument("--gonka-count", type=int, default=2, help="Target Gonka24 akun")
     parser.add_argument("--th-count", type=int, default=1, help="Target TokenHarbor akun")
     parser.add_argument("--grok-count", type=int, default=1, help="Target Grok xAI akun")
