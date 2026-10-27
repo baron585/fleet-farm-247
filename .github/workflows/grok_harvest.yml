@@ -1,0 +1,58 @@
+name: Dedicated Grok xAI Fleet Minter
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      count:
+        description: 'Jumlah akun Grok yang dicetak'
+        required: true
+        default: '3'
+
+permissions:
+  contents: write
+
+jobs:
+  mint-grok:
+    name: Grok xAI OAuth Minter
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install System Dependencies for Playwright Chromium
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb
+          pip install --upgrade pip
+          pip install playwright requests
+          python -m playwright install-deps chromium
+          python -m playwright install chromium
+
+      - name: Run Dedicated Grok Minter
+        run: |
+          COUNT=${{ github.event.inputs.count || '3' }}
+          xvfb-run -a python grok_farmer.py --count $COUNT
+
+      - name: Commit and Push Grok Keys
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          touch fleet_keys.jsonl
+          git add fleet_keys.jsonl grok_cli/grok_credentials.json || true
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto-harvest: Fresh Grok xAI batch [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
+            git pull --rebase origin main || true
+            git push origin main
+          fi
