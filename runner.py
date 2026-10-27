@@ -193,8 +193,8 @@ def run_gonka_farm(browser, count=2):
 # ═══════════════════════════════════════════════════════════════════════════════
 def main():
     parser = argparse.ArgumentParser(description="24/7 All-in-One Cloud Fleet Minter")
-    parser.add_argument("--dahl-count", type=int, default=8, help="Jumlah akun Dahl per siklus")
-    parser.add_argument("--gonka-count", type=int, default=2, help="Jumlah akun Gonka24 per siklus")
+    parser.add_argument("--dahl-count", type=int, default=10, help="Jumlah akun Dahl per siklus")
+    parser.add_argument("--gonka-count", type=int, default=0, help="Jumlah akun Gonka24 per siklus")
     args = parser.parse_args()
 
     log("======================================================================")
