@@ -558,6 +558,9 @@ def farm(args: argparse.Namespace) -> int:
 
     while file_count() < goal:
         sweep += 1
+        if getattr(args, "max_sweeps", 0) > 0 and sweep > args.max_sweeps:
+            log(f"Batas max sweeps ({args.max_sweeps}) tercapai, keluar untuk menyimpan state.")
+            break
         if sweep % 40 == 1 and sweep > 1:
             panels = discover_panels()   # refresh berkala
         log(f"--- sweep#{sweep} | {len(panels)} panel ---")
@@ -655,6 +658,8 @@ def main() -> int:
                     help="jumlah link baru yang dikejar (default10)")
     ap.add_argument("--sweep", type=int, default=20,
                     help="jeda antar sweep detik (default20)")
+    ap.add_argument("--max-sweeps", type=int, default=0,
+                    help="maksimal jumlah sweep sebelum keluar (0 = tanpa batas)")
     ap.add_argument("--discover-only", action="store_true",
                     help="hanya refresh daftar panel lalu keluar")
     ap.add_argument("--discover", action="store_true",

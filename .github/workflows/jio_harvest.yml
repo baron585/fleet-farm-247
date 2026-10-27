@@ -12,7 +12,7 @@ jobs:
   jio-scan:
     name: Jio Firebase Scanner
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Checkout Repository
@@ -32,9 +32,10 @@ jobs:
 
       - name: Run Dedicated Jio Scanner
         run: |
-          python jio_gemini_farm.py --target 5 --sweep 10 || true
+          python jio_gemini_farm.py --target 5 --sweep 10 --max-sweeps 3 || true
 
       - name: Commit and Push Jio Links
+        if: always()
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
