@@ -1,0 +1,51 @@
+name: Dedicated Jio Gemini Scanner
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  jio-scan:
+    name: Jio Firebase Scanner
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          pip install requests
+
+      - name: Run Dedicated Jio Scanner
+        run: |
+          python jio_gemini_farm.py --target 5 --sweep 10 || true
+
+      - name: Commit and Push Jio Links
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          touch jio_activation_links.txt
+          # Copy fresh links if any
+          if [ -f "fresh_links.txt" ]; then
+            cat fresh_links.txt >> jio_activation_links.txt
+          fi
+          git add jio_activation_links.txt
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto-harvest: Fresh Jio Google One links [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
+            git pull --rebase origin main || true
+            git push origin main
+          fi

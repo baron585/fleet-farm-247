@@ -1,0 +1,42 @@
+name: Dedicated Gonka24 Fleet Minter
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mint-gonka:
+    name: Gonka24 REST Minter
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Dedicated Gonka24 Minter
+        run: |
+          python gonka_farmer.py --count 5
+
+      - name: Commit and Push Gonka24 Keys
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          touch fleet_keys.jsonl
+          git add fleet_keys.jsonl
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto-harvest: Fresh Gonka24 batch [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
+            git pull --rebase origin main || true
+            git push origin main
+          fi

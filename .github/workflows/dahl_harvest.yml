@@ -1,0 +1,69 @@
+name: Dedicated Dahl Matrix Fleet Minter
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      count_per_worker:
+        description: 'Target akun per worker matrix'
+        required: true
+        default: '30'
+
+permissions:
+  contents: write
+
+jobs:
+  mint-dahl:
+    name: Dahl Worker ${{ matrix.worker }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [1, 2, 3]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install System Dependencies for Camoufox
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb
+          pip install --upgrade pip
+          pip install camoufox playwright
+          python -m playwright install-deps firefox
+          python -m camoufox fetch
+
+      - name: Run Dedicated Dahl Minter
+        run: |
+          COUNT=${{ github.event.inputs.count_per_worker || '30' }}
+          xvfb-run -a python dahl_farmer.py --count $COUNT --worker-id ${{ matrix.worker }}
+
+      - name: Commit and Push Harvested Dahl Keys (With Rebase Retry)
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          touch fleet_keys.jsonl
+          git add fleet_keys.jsonl
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto-harvest: Fresh Dahl batch from Worker ${{ matrix.worker }} [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
+            for attempt in {1..5}; do
+              git pull --rebase origin main || true
+              if git push origin main; then
+                echo "Successfully pushed keys on attempt $attempt"
+                break
+              fi
+              echo "Push collision, retrying in 3s..."
+              sleep 3
+            done
+          fi
