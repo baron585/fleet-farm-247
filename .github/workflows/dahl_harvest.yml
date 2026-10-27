@@ -53,11 +53,12 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          touch fleet_keys.jsonl
-          git add fleet_keys.jsonl
+          TARGET_FILE="fleet_keys_worker_${{ matrix.worker }}.jsonl"
+          touch $TARGET_FILE
+          git add $TARGET_FILE
           if ! git diff --staged --quiet; then
             git commit -m "Auto-harvest: Fresh Dahl batch from Worker ${{ matrix.worker }} [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
-            for attempt in {1..5}; do
+            for attempt in {1..10}; do
               git pull --rebase origin main || true
               if git push origin main; then
                 echo "Successfully pushed keys on attempt $attempt"

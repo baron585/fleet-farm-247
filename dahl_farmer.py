@@ -18,14 +18,14 @@ from camoufox.sync_api import Camoufox
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 BASE_DIR = Path(__file__).resolve().parent
-OUTPUT_FILE = BASE_DIR / "fleet_keys.jsonl"
 
 def log(msg, symbol="*"):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     print(f"[{now}] [{symbol}] {msg}", flush=True)
 
-def append_key(record):
-    with open(OUTPUT_FILE, "a", encoding="utf-8") as f:
+def append_key(record, worker_id=1):
+    output_file = BASE_DIR / f"fleet_keys_worker_{worker_id}.jsonl"
+    with open(output_file, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 def mint_dahl_account(browser):
@@ -85,7 +85,7 @@ def main():
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "source": "github_actions_dahl_dedicated"
                 }
-                append_key(rec)
+                append_key(rec, worker_id=args.worker_id)
                 minted += 1
                 log(f"[W#{args.worker_id}] [✓] Dahl #{minted}/{args.count}: {uname} -> {token[:16]}... (+100M Tokens)")
             else:
