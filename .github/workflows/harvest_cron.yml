@@ -43,11 +43,11 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main || true
           if [ -f fleet_keys.jsonl ]; then
             git add fleet_keys.jsonl
             if ! git diff --staged --quiet; then
               git commit -m "Auto-harvest: Fresh fleet keys [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
-              git push origin main || git push origin master
+              git pull --rebase origin main
+              git push origin main
             fi
           fi
