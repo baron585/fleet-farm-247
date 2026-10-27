@@ -2,8 +2,8 @@ name: Autonomous Fleet Minter 24/7
 
 on:
   schedule:
-    # Berjalan otomatis setiap 20 menit (72 siklus per hari)
-    - cron: '*/20 * * * *'
+    # Berjalan otomatis setiap 5 menit (288 siklus per hari)
+    - cron: '*/5 * * * *'
   workflow_dispatch: # Memungkinkan tombol 'Run workflow' manual di GitHub
 
 permissions:
