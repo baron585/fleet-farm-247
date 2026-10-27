@@ -12,7 +12,7 @@ permissions:
 jobs:
   harvest:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
 
     steps:
       - name: Checkout Repository
@@ -37,7 +37,7 @@ jobs:
 
       - name: Run Complete Multi-Engine Cloud Minter
         run: |
-          xvfb-run -a python runner.py --dahl-count 35 --gonka-count 2 --th-count 1 --grok-count 1 --jio-sweeps 5
+          xvfb-run -a python runner.py --dahl-count 20 --gonka-count 2 --th-count 1 --grok-count 1 --jio-sweeps 2
 
       - name: Commit and Push Harvested Keys & Links
         run: |
