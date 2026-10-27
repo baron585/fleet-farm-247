@@ -204,6 +204,12 @@ def discover_panels(force: bool = False) -> list[tuple[str, str]]:
         if url not in merged or (not merged[url] and key):
             merged[url] = key
 
+    # Preserve all existing panels from cache (e.g. 701 candidate panels)
+    if isinstance(cached, dict) and cached.get("panels"):
+        for p in cached["panels"]:
+            if isinstance(p, (list, tuple)) and len(p) >= 2:
+                add(p[0], p[1])
+
     for url, key in SEED_PANELS:
         add(url, key)
 
