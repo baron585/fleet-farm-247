@@ -49,7 +49,7 @@ def register_gonka_rest(email, password):
 
 def main():
     parser = argparse.ArgumentParser(description="Dedicated Gonka24 Minter")
-    parser.add_argument("--count", type=int, default=5, help="Jumlah akun yang akan dicetak")
+    parser.add_argument("--count", type=int, default=50, help="Jumlah akun yang akan dicetak")
     args = parser.parse_args()
 
     log(f"======================================================================")

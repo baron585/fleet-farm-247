@@ -2,7 +2,7 @@ name: Dedicated Gonka24 Fleet Minter
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -12,7 +12,7 @@ jobs:
   mint-gonka:
     name: Gonka24 REST Minter
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - name: Checkout Repository
@@ -27,7 +27,7 @@ jobs:
 
       - name: Run Dedicated Gonka24 Minter
         run: |
-          python gonka_farmer.py --count 5
+          python gonka_farmer.py --count 50
 
       - name: Commit and Push Gonka24 Keys
         run: |

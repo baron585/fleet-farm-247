@@ -2,13 +2,13 @@ name: Dedicated Grok xAI Fleet Minter
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
       count:
         description: 'Jumlah akun Grok yang dicetak'
         required: true
-        default: '3'
+        default: '10'
 
 permissions:
   contents: write
@@ -17,7 +17,7 @@ jobs:
   mint-grok:
     name: Grok xAI OAuth Minter
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
 
     steps:
       - name: Checkout Repository
@@ -31,18 +31,19 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install System Dependencies for Playwright Chromium
+      - name: Install System Dependencies for Camoufox & Chromium
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xvfb
           pip install --upgrade pip
-          pip install playwright requests
-          python -m playwright install-deps chromium
+          pip install camoufox playwright requests
+          python -m playwright install-deps chromium firefox
           python -m playwright install chromium
+          python -m camoufox fetch
 
       - name: Run Dedicated Grok Minter
         run: |
-          COUNT=${{ github.event.inputs.count || '3' }}
+          COUNT=${{ github.event.inputs.count || '10' }}
           xvfb-run -a python grok_farmer.py --count $COUNT
 
       - name: Commit and Push Grok Keys

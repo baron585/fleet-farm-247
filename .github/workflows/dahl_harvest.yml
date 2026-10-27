@@ -2,13 +2,13 @@ name: Dedicated Dahl Matrix Fleet Minter
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/10 * * * *'
   workflow_dispatch:
     inputs:
       count_per_worker:
         description: 'Target akun per worker matrix'
         required: true
-        default: '30'
+        default: '50'
 
 permissions:
   contents: write
@@ -17,11 +17,11 @@ jobs:
   mint-dahl:
     name: Dahl Worker ${{ matrix.worker }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
-        worker: [1, 2, 3]
+        worker: [1, 2, 3, 4, 5]
 
     steps:
       - name: Checkout Repository
@@ -46,7 +46,7 @@ jobs:
 
       - name: Run Dedicated Dahl Minter
         run: |
-          COUNT=${{ github.event.inputs.count_per_worker || '30' }}
+          COUNT=${{ github.event.inputs.count_per_worker || '50' }}
           xvfb-run -a python dahl_farmer.py --count $COUNT --worker-id ${{ matrix.worker }}
 
       - name: Commit and Push Harvested Dahl Keys (With Rebase Retry)
