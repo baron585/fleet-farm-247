@@ -37,7 +37,7 @@ jobs:
 
       - name: Run Autonomous Fresh Minter
         run: |
-          xvfb-run -a python runner.py --dahl-count 5 --th-count 1
+          xvfb-run -a python runner.py --dahl-count 10 --th-count 1
 
       - name: Commit and Push Harvested Keys
         run: |
