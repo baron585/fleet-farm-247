@@ -1,0 +1,61 @@
+name: Autonomous Fleet Minter 24/7
+
+on:
+  schedule:
+    # Berjalan otomatis setiap 20 menit (72 siklus per hari)
+    - cron: '*/20 * * * *'
+  workflow_dispatch: # Memungkinkan tombol 'Run workflow' manual di GitHub
+
+permissions:
+  contents: write
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install System Dependencies for Camoufox & Playwright
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-0 \
+            libasound2 \
+            libx11-xcb1 \
+            libdbus-glib-1-2 \
+            libxt6 \
+            xvfb
+
+      - name: Install Python Requirements
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m camoufox fetch
+
+      - name: Run Autonomous Fresh Minter
+        run: |
+          xvfb-run -a python runner.py --dahl-count 5 --th-count 1
+
+      - name: Commit and Push Harvested Keys
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main || true
+          if [ -f fleet_keys.jsonl ]; then
+            git add fleet_keys.jsonl
+            if ! git diff --staged --quiet; then
+              git commit -m "Auto-harvest: Fresh fleet keys [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
+              git push origin main || git push origin master
+            fi
+          fi
