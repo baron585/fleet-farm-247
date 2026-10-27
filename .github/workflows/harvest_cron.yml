@@ -2,9 +2,9 @@ name: Autonomous Fleet Minter 24/7
 
 on:
   schedule:
-    # Berjalan otomatis setiap 5 menit (288 siklus per hari)
+    # Berjalan otomatis setiap 5 menit (288 siklus per hari di cloud runner)
     - cron: '*/5 * * * *'
-  workflow_dispatch: # Memungkinkan tombol 'Run workflow' manual di GitHub
+  workflow_dispatch: # Tombol manual 'Run workflow'
 
 permissions:
   contents: write
@@ -12,7 +12,7 @@ permissions:
 jobs:
   harvest:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout Repository
@@ -35,19 +35,17 @@ jobs:
           python -m playwright install-deps firefox
           python -m camoufox fetch
 
-      - name: Run Autonomous Fresh Minter
+      - name: Run Complete Multi-Engine Cloud Minter
         run: |
-          xvfb-run -a python runner.py --dahl-count 10 --gonka-count 0
+          xvfb-run -a python runner.py --dahl-count 8 --gonka-count 2 --th-count 1 --grok-count 1 --jio-sweeps 3
 
-      - name: Commit and Push Harvested Keys
+      - name: Commit and Push Harvested Keys & Links
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          if [ -f fleet_keys.jsonl ]; then
-            git add fleet_keys.jsonl
-            if ! git diff --staged --quiet; then
-              git commit -m "Auto-harvest: Fresh fleet keys [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
-              git pull --rebase origin main
-              git push origin main
-            fi
+          git add fleet_keys.jsonl jio_activation_links.txt || true
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto-harvest: Fresh multi-engine fleet [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
+            git pull --rebase origin main
+            git push origin main
           fi

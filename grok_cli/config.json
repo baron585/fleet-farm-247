@@ -1,0 +1,8 @@
+{
+  "worker_url": "https://mail.farmon.my.id",
+  "worker_domains": [
+    "farmon.my.id"
+  ],
+  "concurrency": 2,
+  "auto_inject_9router": true
+}

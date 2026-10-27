@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-⚡ 24/7 ALL-IN-ONE AUTONOMOUS FLEET MINTER (Cloud Runner Edition)
+⚡ 24/7 ALL-IN-ONE AUTONOMOUS FLEET MINTER (Complete Cloud Runner Edition)
 Integrated Farm Engines:
 1. Dahl Inference (100M Tokens per account)
 2. Gonka24 (Zero-Captcha REST + Firebase Session -> sk-... API Keys)
-3. TokenHarbor (Disposable Email + Headless Registration -> thk_live_... API Keys)
+3. TokenHarbor (Automated Turnstile / Tempmail Collector)
+4. Grok xAI (xAI OAuth Signup via farmon.my.id)
+5. Jio Gemini Farm (Firebase Panel Interception & Google One Links)
 """
 
 import os
@@ -15,12 +17,16 @@ import random
 import string
 import urllib.request
 import urllib.error
+import subprocess
 import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_FILE = BASE_DIR / "fleet_keys.jsonl"
+JIO_LINKS_FILE = BASE_DIR / "jio_activation_links.txt"
 
 def log(msg, symbol="*"):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -30,9 +36,9 @@ def append_key(record):
     with open(OUTPUT_FILE, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────────────
 # 1. DAHL INFERENCE ENGINE (100M Tokens / Akun)
-# ═══════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────────────
 def mint_dahl_account(browser):
     uname = "dahl" + "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
     try:
@@ -82,13 +88,13 @@ def run_dahl_farm(browser, count=8):
             }
             append_key(rec)
             minted += 1
-            log(f"  [✔] Dahl #{i+1}: {uname} -> {token[:16]}... (100M Tokens)")
-        time.sleep(random.uniform(2.0, 4.0))
+            log(f"  [✓] Dahl #{i+1}: {uname} -> {token[:16]}... (100M Tokens)")
+        time.sleep(random.uniform(2.0, 3.5))
     return minted
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────────────
 # 2. GONKA24 ENGINE (Minimax & DeepSeek sk-... Keys)
-# ═══════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────────────
 def register_gonka_rest(email, password):
     payload = {"email": email.strip().lower(), "password": password}
     req = urllib.request.Request(
@@ -184,34 +190,140 @@ def run_gonka_farm(browser, count=2):
                 }
                 append_key(rec)
                 minted += 1
-                log(f"  [✔] Gonka #{i+1}: {email} -> {raw_key[:20]}...")
-        time.sleep(random.uniform(2.0, 4.0))
+                log(f"  [✓] Gonka #{i+1}: {email} -> {raw_key[:20]}...")
+        time.sleep(random.uniform(2.0, 3.5))
     return minted
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# MAIN ORCHESTRATOR
-# ═══════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. TOKENHARBOR ENGINE
+# ─────────────────────────────────────────────────────────────────────────────
+def run_tokenharbor_farm(count=2):
+    log(f"--- [ENGINE 3] TOKENHARBOR HARVESTER (Target: {count} akun) ---")
+    script = BASE_DIR / "tokenharbor_farmer.py"
+    if not script.exists():
+        log("[!] tokenharbor_farmer.py tidak ditemukan, lewati.")
+        return 0
+    cmd = [sys.executable, str(script), "--count", str(count)]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        added = 0
+        import re
+        keys = re.findall(r"(thk_live_[A-Za-z0-9_-]{20,})", res.stdout)
+        for k in set(keys):
+            rec = {
+                "provider": "openai-compatible-chat-tokenharbor",
+                "api_key": k,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source": "github_actions_cloud"
+            }
+            append_key(rec)
+            added += 1
+            log(f"  [✓] TokenHarbor: {k[:18]}...")
+        return added
+    except Exception as e:
+        log(f"TokenHarbor error: {e}", symbol="-")
+        return 0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. GROK xAI ENGINE (via farmon.my.id)
+# ─────────────────────────────────────────────────────────────────────────────
+def run_grok_farm(count=1):
+    log(f"--- [ENGINE 4] GROK xAI CLI ENGINE (Target: {count} akun) ---")
+    script = BASE_DIR / "grok_cli" / "main.py"
+    if not script.exists():
+        log("[!] grok_cli/main.py tidak ditemukan, lewati.")
+        return 0
+    cmd = [sys.executable, str(script), "--count", str(count), "--workers", "1", "--proxy-mode", "direct", "--no-9router"]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=240)
+        # Parse created credentials
+        cred_file = BASE_DIR / "grok_cli" / "grok_credentials.json"
+        if cred_file.exists():
+            with open(cred_file, "r", encoding="utf-8") as f:
+                creds = json.load(f)
+                if creds:
+                    latest = creds[-1]
+                    rec = {
+                        "provider": "grok-cli",
+                        "email": latest.get("email"),
+                        "refresh_token": latest.get("refresh_token"),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "source": "github_actions_cloud"
+                    }
+                    append_key(rec)
+                    log(f"  [✓] Grok xAI Account: {latest.get('email')}")
+                    return 1
+    except Exception as e:
+        log(f"Grok error: {e}", symbol="-")
+    return 0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. JIO GEMINI FARM ENGINE
+# ─────────────────────────────────────────────────────────────────────────────
+def run_jio_farm(sweep_count=3):
+    log(f"--- [ENGINE 5] JIO GEMINI PROMO SWEEPER ({sweep_count} sweeps) ---")
+    script = BASE_DIR / "jio_gemini_farm.py"
+    if not script.exists():
+        log("[!] jio_gemini_farm.py tidak ditemukan, lewati.")
+        return 0
+    cmd = [sys.executable, str(script), "--target", "1", "--sweep", str(sweep_count)]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        # Check if fresh links generated
+        links_file = BASE_DIR / "fresh_links.txt"
+        if links_file.exists():
+            with open(links_file, "r", encoding="utf-8") as f:
+                links = [l.strip() for l in f if l.strip()]
+                for l in links:
+                    with open(JIO_LINKS_FILE, "a", encoding="utf-8") as out_f:
+                        out_f.write(l + "\n")
+                    log(f"  [✓] JIO GEMINI LINK: {l}")
+                return len(links)
+    except Exception as e:
+        log(f"Jio error: {e}", symbol="-")
+    return 0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MAIN ALL-IN-ONE ORCHESTRATOR
+# ─────────────────────────────────────────────────────────────────────────────
 def main():
-    parser = argparse.ArgumentParser(description="24/7 All-in-One Cloud Fleet Minter")
-    parser.add_argument("--dahl-count", type=int, default=10, help="Jumlah akun Dahl per siklus")
-    parser.add_argument("--gonka-count", type=int, default=0, help="Jumlah akun Gonka24 per siklus")
+    parser = argparse.ArgumentParser(description="24/7 Complete Cloud Fleet Minter")
+    parser.add_argument("--dahl-count", type=int, default=8, help="Target Dahl akun")
+    parser.add_argument("--gonka-count", type=int, default=2, help="Target Gonka24 akun")
+    parser.add_argument("--th-count", type=int, default=1, help="Target TokenHarbor akun")
+    parser.add_argument("--grok-count", type=int, default=1, help="Target Grok xAI akun")
+    parser.add_argument("--jio-sweeps", type=int, default=3, help="Jumlah sweep Jio panel")
     args = parser.parse_args()
 
     log("======================================================================")
-    log("  🚀 ALL-IN-ONE 24/7 AUTONOMOUS CLOUD FLEET MINTER (MULTI-ENGINE)     ")
+    log("  🚀 COMPLETE MULTI-ENGINE 24/7 CLOUD FLEET MINTER (GITHUB ACTIONS)   ")
     log("======================================================================")
 
     from camoufox.sync_api import Camoufox
 
     with Camoufox(headless=True, humanize=False, geoip=False) as browser:
-        # 1. Harvest Dahl
+        # 1. Harvest Dahl (100M per akun)
         dahl_total = run_dahl_farm(browser, count=args.dahl_count)
 
         # 2. Harvest Gonka24
         gonka_total = run_gonka_farm(browser, count=args.gonka_count)
 
+    # 3. Harvest TokenHarbor
+    th_total = run_tokenharbor_farm(count=args.th_count)
+
+    # 4. Harvest Grok xAI via Cloudflare Worker
+    grok_total = run_grok_farm(count=args.grok_count)
+
+    # 5. Sweep Jio Gemini
+    jio_total = run_jio_farm(sweep_count=args.jio_sweeps)
+
     log("======================================================================")
-    log(f"★ SIKLUS CLOUD SELESAI! Ditambahkan: Dahl +{dahl_total} akun | Gonka +{gonka_total} akun")
+    log(f"🎉 SIKLUS CLOUD SELESAI:")
+    log(f"  • Dahl: +{dahl_total} akun (+{dahl_total * 100}M Tokens)")
+    log(f"  • Gonka24: +{gonka_total} akun")
+    log(f"  • TokenHarbor: +{th_total} akun")
+    log(f"  • Grok xAI: +{grok_total} akun")
+    log(f"  • Jio Gemini: +{jio_total} links")
     log("======================================================================")
 
 if __name__ == "__main__":

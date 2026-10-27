@@ -1,0 +1,12 @@
+name = "grok-tempmail-worker"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+
+[vars]
+TEMPMAIL_DOMAIN = "farmon.my.id"
+TEMPMAIL_DOMAINS = "farmon.my.id"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tempmail_db"
+database_id = "798b3ff6-2a7f-4989-9f96-cdd763651f0c"
