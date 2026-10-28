@@ -29,34 +29,69 @@ def append_key(record, worker_id=1):
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 def mint_dahl_account(browser):
-    uname = "dahl" + "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
     try:
         page = browser.new_page()
         page.goto('https://inference.dahl.global/account', wait_until='load', timeout=35000)
+        time.sleep(1.5)
+
+        # Clear cookies for fresh account session
+        page.context.clear_cookies()
+        page.goto('https://inference.dahl.global/account', wait_until='load', timeout=35000)
+        time.sleep(1.2)
+
+        # Klik "Create account" pada desktop dialog / modal
+        btn = page.locator('p:has-text("No account yet?") button')
+        if not btn.is_visible(timeout=3000):
+            btn = page.locator('button:has-text("Create account"):visible').first
+        btn.click()
         time.sleep(1.0)
-        res = page.evaluate("""async (username) => {
+
+        # Submit form pendaftaran
+        submit_btn = page.locator('button[type="submit"]').first
+        for _ in range(12):
+            t = submit_btn.inner_text().strip()
+            if "CHECKING" not in t.upper() and len(t) > 0:
+                submit_btn.click()
+                break
+            time.sleep(0.5)
+
+        time.sleep(2.5)
+
+        # Ekstrak akun, token penuh, dan alokasikan 100M token
+        res = page.evaluate("""async () => {
             try {
-                const s = await fetch('/v1/auth/signup', {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: username })
-                }).then(r => r.json());
-                if (!s.api_key || !s.api_key.id) return { error: 'Signup failed', raw: s };
-                const alloc = await fetch('/v1/account/allocate', {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ amount: 100000000, key_id: s.api_key.id })
-                }).then(r => r.json());
-                return { ok: true, username: username, token: s.api_key.token };
+                const acc = await fetch('/v1/account', { credentials: 'include' }).then(r => r.json());
+                const keys = await fetch('/v1/account/keys', { credentials: 'include' }).then(r => r.json());
+                
+                let full_token = null;
+                let key_id = null;
+                if (keys && keys.keys && keys.keys.length > 0) {
+                    key_id = keys.keys[0].id;
+                    full_token = keys.keys[0].token;
+                }
+                
+                let alloc = null;
+                if (key_id) {
+                    alloc = await fetch('/v1/account/allocate', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ amount: 100000000, key_id: key_id })
+                    }).then(r => r.json());
+                }
+                
+                return {
+                    ok: !!full_token,
+                    username: acc?.user?.username || ('dahl_' + key_id),
+                    token: full_token
+                };
             } catch (e) {
-                return { error: e.toString() };
+                return { ok: false, error: e.toString() };
             }
-        }""", uname)
+        }""")
         page.close()
         if res and res.get("ok"):
-            return res.get("token"), uname
+            return res.get("token"), res.get("username")
     except Exception as e:
         log(f"Dahl mint error: {e}", symbol="-")
     return None, None
