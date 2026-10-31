@@ -1,12 +1,12 @@
-name: Dedicated Domain & Bansos Cloud Harvester
+name: Dedicated Domain & Bansos Cloud Harvester (Mass Matrix)
 
 on:
   schedule:
-    - cron: '0 */4 * * *'
+    - cron: '0 */2 * * *'
   workflow_dispatch:
     inputs:
       target:
-        description: 'Target to harvest (all, idwebhost, aiclub, ifm)'
+        description: 'Target to harvest (all, ifm, aiclub, idwebhost)'
         required: true
         default: 'all'
 
@@ -14,10 +14,14 @@ permissions:
   contents: write
 
 jobs:
-  harvest-cloud:
-    name: Cloud Minter (16GB RAM Azure Runner)
+  mass-cloud-harvester:
+    name: Cloud Minter Cluster #${{ matrix.cluster_id }} (16GB RAM Azure Runner)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        cluster_id: [1, 2, 3, 4, 5]
 
     steps:
       - name: Checkout Repository
@@ -40,20 +44,10 @@ jobs:
           python -m playwright install-deps firefox
           python -m camoufox fetch
 
-      - name: Harvest AICLUB Developer Subdomains (.ai.id / .web.id / .cv)
-        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'aiclub' }}
-        run: |
-          xvfb-run -a python aiclub_farmer.py --count 2 --prefix rondev
-
-      - name: Harvest IDwebhost Domains (Coupon 30-mTsM-IDH)
-        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'idwebhost' }}
-        run: |
-          xvfb-run -a python idwebhost_farmer.py --count 2 --prefix rondev
-
-      - name: Harvest IFM 10M Token API Keys
+      - name: Mass Harvest IFM 10M Token API Keys (Cluster ${{ matrix.cluster_id }})
         if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'ifm' }}
         run: |
-          xvfb-run -a python ifm_farmer.py --count 2
+          xvfb-run -a python ifm_farmer.py --worker-id ${{ matrix.cluster_id }} --count 4
 
       - name: Commit and Push Harvested Domains and Keys
         run: |
@@ -62,14 +56,14 @@ jobs:
           touch fleet_domains.jsonl ifm_fleet_keys.jsonl
           git add fleet_domains.jsonl ifm_fleet_keys.jsonl
           if ! git diff --staged --quiet; then
-            git commit -m "Auto-harvest: Fresh Domains & IFM Keys [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
-            for attempt in {1..10}; do
+            git commit -m "Auto-harvest: Fresh Mass Keys (Cluster ${{ matrix.cluster_id }}) [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
+            for attempt in {1..20}; do
               git pull --rebase origin main || true
               if git push origin main; then
-                echo "Successfully pushed results on attempt $attempt"
+                echo "Successfully pushed results for cluster ${{ matrix.cluster_id }} on attempt $attempt"
                 break
               fi
-              echo "Push collision, retrying in 3s..."
-              sleep 3
+              echo "Push collision on cluster ${{ matrix.cluster_id }}, retrying in 4s..."
+              sleep $((RANDOM % 5 + 3))
             done
           fi
