@@ -29,13 +29,11 @@ def fetch_inboxkitten_otp(recipient, timeout_sec=60):
                 data = r.json()
                 for mail in data:
                     subject = mail.get("message", {}).get("headers", {}).get("subject", "")
-                    # Look for 6 digit code in subject
                     m = re.search(r'\b(\d{6})\b', subject)
                     if m:
                         code = m.group(1)
                         log(f"[✓] OTP code found in subject: {code}")
                         return code
-                    # If not in subject, check storage body
                     storage = mail.get("storage", {})
                     if storage and "key" in storage:
                         s_key = storage["key"]
@@ -70,14 +68,14 @@ def farm_aiclub_subdomain(subdomain_name, domain_base="std.ai.id", target="baron
         # Step 1: Open landing
         log("Navigating to https://aiclub.ai.id/masuk.html ...")
         page.goto("https://aiclub.ai.id/masuk.html", timeout=45000, wait_until="domcontentloaded")
-        time.sleep(3)
+        time.sleep(4)
 
         # Step 2: Switch to Register tab
         log("Clicking 'Daftar' tab...")
         tab_reg = page.locator("#tab-reg")
         if tab_reg.count() > 0:
             tab_reg.click()
-            time.sleep(1)
+            time.sleep(2)
 
         # Step 3: Fill registration form
         page.locator("#rg-email").fill(email)
@@ -86,17 +84,25 @@ def farm_aiclub_subdomain(subdomain_name, domain_base="std.ai.id", target="baron
 
         # Wait for Turnstile
         deadline = time.time() + 45
+        ts_token = None
         while time.time() < deadline:
-            ts_val = page.evaluate("() => turnstileTokens.register")
-            if ts_val:
-                log(f"[✓] Turnstile solved! Token prefix: {ts_val[:16]}...")
+            ts_token = page.evaluate("""() => {
+                const el = document.querySelector('#ts-register input[name="cf-turnstile-response"]') || 
+                           document.querySelector('input[name="cf-turnstile-response"]');
+                return el && el.value ? el.value : '';
+            }""")
+            if ts_token:
+                log(f"[✓] Turnstile solved! Token prefix: {ts_token[:16]}...")
                 break
             time.sleep(2)
+
+        if not ts_token:
+            log("[-] Turnstile token not obtained, trying click submit anyway...")
 
         # Submit registration
         log("Submitting registration form...")
         page.locator("#form-reg button[type='submit']").click()
-        time.sleep(5)
+        time.sleep(6)
 
         # Check if form-otp is visible
         otp_visible = page.locator("#form-otp").is_visible()
