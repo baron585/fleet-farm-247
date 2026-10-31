@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Target to harvest (all, idwebhost, ifm)'
+        description: 'Target to harvest (all, idwebhost, aiclub, ifm)'
         required: true
         default: 'all'
 
@@ -40,10 +40,15 @@ jobs:
           python -m playwright install-deps firefox
           python -m camoufox fetch
 
+      - name: Harvest AICLUB Developer Subdomains (.ai.id / .web.id / .cv)
+        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'aiclub' }}
+        run: |
+          xvfb-run -a python aiclub_farmer.py --count 2 --prefix rondev
+
       - name: Harvest IDwebhost Domains (Coupon 30-mTsM-IDH)
         if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'idwebhost' }}
         run: |
-          xvfb-run -a python idwebhost_farmer.py --count 3 --prefix rondev
+          xvfb-run -a python idwebhost_farmer.py --count 2 --prefix rondev
 
       - name: Harvest IFM 10M Token API Keys
         if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'ifm' }}
