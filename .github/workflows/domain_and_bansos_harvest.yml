@@ -49,6 +49,12 @@ jobs:
         run: |
           xvfb-run -a python ifm_farmer.py --worker-id ${{ matrix.cluster_id }} --count 4
 
+      - name: Harvest Free Domains & Subdomains (AICLUB & IDWebHost) (Cluster ${{ matrix.cluster_id }})
+        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'aiclub' || github.event.inputs.target == 'idwebhost' }}
+        run: |
+          xvfb-run -a python aiclub_farmer.py || true
+          xvfb-run -a python idwebhost_farmer.py || true
+
       - name: Commit and Push Harvested Domains and Keys
         run: |
           git config --global user.name "github-actions[bot]"
