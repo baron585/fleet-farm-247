@@ -1,0 +1,70 @@
+name: Dedicated Domain & Bansos Cloud Harvester
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Target to harvest (all, idwebhost, ifm)'
+        required: true
+        default: 'all'
+
+permissions:
+  contents: write
+
+jobs:
+  harvest-cloud:
+    name: Cloud Minter (16GB RAM Azure Runner)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install System Dependencies for Camoufox
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m playwright install-deps firefox
+          python -m camoufox fetch
+
+      - name: Harvest IDwebhost Domains (Coupon 30-mTsM-IDH)
+        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'idwebhost' }}
+        run: |
+          xvfb-run -a python idwebhost_farmer.py --count 3 --prefix rondev
+
+      - name: Harvest IFM 10M Token API Keys
+        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'ifm' }}
+        run: |
+          xvfb-run -a python ifm_farmer.py --count 2
+
+      - name: Commit and Push Harvested Domains and Keys
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          touch fleet_domains.jsonl ifm_fleet_keys.jsonl
+          git add fleet_domains.jsonl ifm_fleet_keys.jsonl
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto-harvest: Fresh Domains & IFM Keys [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
+            for attempt in {1..10}; do
+              git pull --rebase origin main || true
+              if git push origin main; then
+                echo "Successfully pushed results on attempt $attempt"
+                break
+              fi
+              echo "Push collision, retrying in 3s..."
+              sleep 3
+            done
+          fi
