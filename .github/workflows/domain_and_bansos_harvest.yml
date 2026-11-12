@@ -45,12 +45,12 @@ jobs:
           python -m camoufox fetch
 
       - name: Mass Harvest IFM 10M Token API Keys (Cluster ${{ matrix.cluster_id }})
-        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'ifm' }}
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.target == 'all' || github.event.inputs.target == 'ifm' }}
         run: |
           xvfb-run -a python ifm_farmer.py --worker-id ${{ matrix.cluster_id }} --count 4
 
       - name: Harvest Free Domains & Subdomains (AICLUB & IDWebHost) (Cluster ${{ matrix.cluster_id }})
-        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'aiclub' || github.event.inputs.target == 'idwebhost' }}
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.target == 'all' || github.event.inputs.target == 'aiclub' || github.event.inputs.target == 'idwebhost' }}
         run: |
           xvfb-run -a python aiclub_farmer.py || true
           xvfb-run -a python idwebhost_farmer.py || true
