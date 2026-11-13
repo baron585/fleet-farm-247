@@ -146,7 +146,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--worker-id", default="1")
     parser.add_argument("--count", type=int, default=1)
+    parser.add_argument("--output", default=None)
     args = parser.parse_args()
+
+    global KEYS_OUT
+    if args.output:
+        KEYS_OUT = Path(args.output)
+    else:
+        KEYS_OUT = Path(f"ifm_fleet_keys_cluster_{args.worker_id}.jsonl")
 
     for i in range(args.count):
         try:

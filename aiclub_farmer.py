@@ -174,7 +174,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--count", type=int, default=1)
     parser.add_argument("--prefix", default="rondev")
+    parser.add_argument("--output", default=None)
     args = parser.parse_args()
+
+    global DOMAINS_OUT
+    if args.output:
+        DOMAINS_OUT = Path(args.output)
 
     for i in range(args.count):
         sub = f"{args.prefix}{random_string(4)}"

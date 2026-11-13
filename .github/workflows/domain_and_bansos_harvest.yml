@@ -47,29 +47,75 @@ jobs:
       - name: Mass Harvest IFM 10M Token API Keys (Cluster ${{ matrix.cluster_id }})
         if: ${{ github.event_name == 'schedule' || github.event.inputs.target == 'all' || github.event.inputs.target == 'ifm' }}
         run: |
-          xvfb-run -a python ifm_farmer.py --worker-id ${{ matrix.cluster_id }} --count 4
+          xvfb-run -a python ifm_farmer.py --worker-id ${{ matrix.cluster_id }} --count 4 --output ifm_fleet_keys_cluster_${{ matrix.cluster_id }}.jsonl
 
       - name: Harvest Free Domains & Subdomains (AICLUB & IDWebHost) (Cluster ${{ matrix.cluster_id }})
         if: ${{ github.event_name == 'schedule' || github.event.inputs.target == 'all' || github.event.inputs.target == 'aiclub' || github.event.inputs.target == 'idwebhost' }}
         run: |
-          xvfb-run -a python aiclub_farmer.py || true
-          xvfb-run -a python idwebhost_farmer.py || true
+          xvfb-run -a python aiclub_farmer.py --output fleet_domains_cluster_${{ matrix.cluster_id }}.jsonl || true
+          xvfb-run -a python idwebhost_farmer.py --worker-id ${{ matrix.cluster_id }} --output fleet_domains_cluster_${{ matrix.cluster_id }}.jsonl || true
 
       - name: Commit and Push Harvested Domains and Keys
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          touch fleet_domains.jsonl ifm_fleet_keys.jsonl
-          git add fleet_domains.jsonl ifm_fleet_keys.jsonl
+          touch ifm_fleet_keys_cluster_${{ matrix.cluster_id }}.jsonl fleet_domains_cluster_${{ matrix.cluster_id }}.jsonl
+          git add ifm_fleet_keys_cluster_${{ matrix.cluster_id }}.jsonl fleet_domains_cluster_${{ matrix.cluster_id }}.jsonl
           if ! git diff --staged --quiet; then
             git commit -m "Auto-harvest: Fresh Mass Keys (Cluster ${{ matrix.cluster_id }}) [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
             for attempt in {1..20}; do
-              git pull --rebase origin main || true
               if git push origin main; then
                 echo "Successfully pushed results for cluster ${{ matrix.cluster_id }} on attempt $attempt"
                 break
               fi
-              echo "Push collision on cluster ${{ matrix.cluster_id }}, retrying in 4s..."
+              echo "Push collision on cluster ${{ matrix.cluster_id }}, rebasing..."
+              git pull --rebase origin main || git rebase --abort
               sleep $((RANDOM % 5 + 3))
             done
+          fi
+
+  aggregate-keys:
+    name: Aggregate Harvested Fleet Keys & Domains
+    needs: [mass-cloud-harvester]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge Sharded Outputs into Master Logs
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main || true
+
+          shopt -s nullglob
+          ifm_files=(ifm_fleet_keys_cluster_*.jsonl)
+          domain_files=(fleet_domains_cluster_*.jsonl)
+
+          if [ ${#ifm_files[@]} -gt 0 ]; then
+            cat "${ifm_files[@]}" >> ifm_fleet_keys.jsonl
+            git rm "${ifm_files[@]}"
+          fi
+
+          if [ ${#domain_files[@]} -gt 0 ]; then
+            cat "${domain_files[@]}" >> fleet_domains.jsonl
+            git rm "${domain_files[@]}"
+          fi
+
+          git add ifm_fleet_keys.jsonl fleet_domains.jsonl 2>/dev/null || true
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto-harvest: Master Fleet Key & Domain Aggregation [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
+            for attempt in {1..10}; do
+              if git push origin main; then
+                echo "Aggregation pushed successfully on attempt $attempt"
+                break
+              fi
+              git pull --rebase origin main || git rebase --abort
+              sleep $((RANDOM % 4 + 2))
+            done
+          else
+            echo "No sharded files to aggregate."
           fi
