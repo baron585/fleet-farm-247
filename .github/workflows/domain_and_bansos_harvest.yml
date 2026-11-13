@@ -1,27 +1,27 @@
-name: Dedicated Domain & Bansos Cloud Harvester (Mass Matrix)
+name: IFM K2 Horizon Mass Cloud Harvester (20 Parallel Clusters)
 
 on:
   schedule:
-    - cron: '0 */2 * * *'
+    - cron: '*/30 * * * *'
   workflow_dispatch:
     inputs:
-      target:
-        description: 'Target to harvest (all, ifm, aiclub, idwebhost)'
+      count_per_cluster:
+        description: 'Target akun per cluster'
         required: true
-        default: 'all'
+        default: '10'
 
 permissions:
   contents: write
 
 jobs:
-  mass-cloud-harvester:
-    name: Cloud Minter Cluster #${{ matrix.cluster_id }} (16GB RAM Azure Runner)
+  mass-ifm-harvester:
+    name: IFM Cluster #${{ matrix.cluster_id }} (Azure 16GB Runner)
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
-        cluster_id: [1, 2, 3, 4, 5]
+        cluster_id: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 
     steps:
       - name: Checkout Repository
@@ -47,27 +47,22 @@ jobs:
           python -m camoufox fetch
 
       - name: Mass Harvest IFM 10M Token API Keys (Cluster ${{ matrix.cluster_id }})
-        if: ${{ github.event_name == 'schedule' || github.event.inputs.target == 'all' || github.event.inputs.target == 'ifm' }}
         run: |
-          xvfb-run -a python ifm_farmer.py --worker-id ${{ matrix.cluster_id }} --count 4 --output ifm_fleet_keys_cluster_${{ matrix.cluster_id }}.jsonl
+          COUNT=${{ github.event.inputs.count_per_cluster || '10' }}
+          xvfb-run -a python ifm_farmer.py --worker-id ${{ matrix.cluster_id }} --count $COUNT --output ifm_fleet_keys_cluster_${{ matrix.cluster_id }}.jsonl
 
-      - name: Harvest Free Domains & Subdomains (AICLUB & IDWebHost) (Cluster ${{ matrix.cluster_id }})
-        if: ${{ github.event_name == 'schedule' || github.event.inputs.target == 'all' || github.event.inputs.target == 'aiclub' || github.event.inputs.target == 'idwebhost' }}
-        run: |
-          xvfb-run -a python aiclub_farmer.py --output fleet_domains_cluster_${{ matrix.cluster_id }}.jsonl || true
-          xvfb-run -a python idwebhost_farmer.py --worker-id ${{ matrix.cluster_id }} --output fleet_domains_cluster_${{ matrix.cluster_id }}.jsonl || true
-
-      - name: Commit and Push Harvested Domains and Keys
+      - name: Commit and Push Sharded Keys
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          touch ifm_fleet_keys_cluster_${{ matrix.cluster_id }}.jsonl fleet_domains_cluster_${{ matrix.cluster_id }}.jsonl
-          git add ifm_fleet_keys_cluster_${{ matrix.cluster_id }}.jsonl fleet_domains_cluster_${{ matrix.cluster_id }}.jsonl
+          TARGET_FILE="ifm_fleet_keys_cluster_${{ matrix.cluster_id }}.jsonl"
+          touch $TARGET_FILE
+          git add $TARGET_FILE
           if ! git diff --staged --quiet; then
-            git commit -m "Auto-harvest: Fresh Mass Keys (Cluster ${{ matrix.cluster_id }}) [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
-            for attempt in {1..20}; do
+            git commit -m "Auto-harvest: Fresh IFM Batch (Cluster ${{ matrix.cluster_id }}) [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
+            for attempt in {1..25}; do
               if git push origin main; then
-                echo "Successfully pushed results for cluster ${{ matrix.cluster_id }} on attempt $attempt"
+                echo "Successfully pushed cluster ${{ matrix.cluster_id }} on attempt $attempt"
                 break
               fi
               echo "Push collision on cluster ${{ matrix.cluster_id }}, rebasing..."
@@ -77,8 +72,8 @@ jobs:
           fi
 
   aggregate-keys:
-    name: Aggregate Harvested Fleet Keys & Domains
-    needs: [mass-cloud-harvester]
+    name: Aggregate Harvested IFM Keys into Master
+    needs: [mass-ifm-harvester]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -95,24 +90,18 @@ jobs:
 
           shopt -s nullglob
           ifm_files=(ifm_fleet_keys_cluster_*.jsonl)
-          domain_files=(fleet_domains_cluster_*.jsonl)
 
           if [ ${#ifm_files[@]} -gt 0 ]; then
             cat "${ifm_files[@]}" >> ifm_fleet_keys.jsonl
             git rm "${ifm_files[@]}"
           fi
 
-          if [ ${#domain_files[@]} -gt 0 ]; then
-            cat "${domain_files[@]}" >> fleet_domains.jsonl
-            git rm "${domain_files[@]}"
-          fi
-
-          git add ifm_fleet_keys.jsonl fleet_domains.jsonl 2>/dev/null || true
+          git add ifm_fleet_keys.jsonl 2>/dev/null || true
           if ! git diff --staged --quiet; then
-            git commit -m "Auto-harvest: Master Fleet Key & Domain Aggregation [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
-            for attempt in {1..10}; do
+            git commit -m "Auto-harvest: Master IFM Fleet Key Aggregation [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
+            for attempt in {1..15}; do
               if git push origin main; then
-                echo "Aggregation pushed successfully on attempt $attempt"
+                echo "Master aggregation pushed successfully on attempt $attempt"
                 break
               fi
               git pull --rebase origin main || git rebase --abort

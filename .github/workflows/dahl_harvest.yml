@@ -1,27 +1,27 @@
-name: Dedicated Dahl Matrix Fleet Minter
+name: IFM K2 Horizon Secondary Cloud Harvester (Clusters 21-30)
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '15 */1 * * *'
   workflow_dispatch:
     inputs:
-      count_per_worker:
-        description: 'Target akun per worker matrix'
+      count_per_cluster:
+        description: 'Target akun per cluster'
         required: true
-        default: '50'
+        default: '10'
 
 permissions:
   contents: write
 
 jobs:
-  mint-dahl:
-    name: Dahl Worker ${{ matrix.worker }}
+  mass-ifm-harvester-secondary:
+    name: IFM Cluster #${{ matrix.cluster_id }} (Azure 16GB Runner)
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
-        worker: [1, 2, 3, 4, 5]
+        cluster_id: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
 
     steps:
       - name: Checkout Repository
@@ -42,31 +42,71 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xvfb
           pip install --upgrade pip
-          pip install camoufox playwright
+          pip install -r requirements.txt
           python -m playwright install-deps firefox
           python -m camoufox fetch
 
-      - name: Run Dedicated Dahl Minter
+      - name: Mass Harvest IFM 10M Token API Keys (Cluster ${{ matrix.cluster_id }})
         run: |
-          COUNT=${{ github.event.inputs.count_per_worker || '50' }}
-          xvfb-run -a python dahl_farmer.py --count $COUNT --worker-id ${{ matrix.worker }}
+          COUNT=${{ github.event.inputs.count_per_cluster || '10' }}
+          xvfb-run -a python ifm_farmer.py --worker-id ${{ matrix.cluster_id }} --count $COUNT --output ifm_fleet_keys_cluster_${{ matrix.cluster_id }}.jsonl
 
-      - name: Commit and Push Harvested Dahl Keys (With Rebase Retry)
+      - name: Commit and Push Sharded Keys
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          TARGET_FILE="fleet_keys_worker_${{ matrix.worker }}.jsonl"
+          TARGET_FILE="ifm_fleet_keys_cluster_${{ matrix.cluster_id }}.jsonl"
           touch $TARGET_FILE
           git add $TARGET_FILE
           if ! git diff --staged --quiet; then
-            git commit -m "Auto-harvest: Fresh Dahl batch from Worker ${{ matrix.worker }} [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
-            for attempt in {1..10}; do
-              git pull --rebase origin main || true
+            git commit -m "Auto-harvest: Fresh IFM Batch (Cluster ${{ matrix.cluster_id }}) [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
+            for attempt in {1..25}; do
               if git push origin main; then
-                echo "Successfully pushed keys on attempt $attempt"
+                echo "Successfully pushed cluster ${{ matrix.cluster_id }} on attempt $attempt"
                 break
               fi
-              echo "Push collision, retrying in 3s..."
-              sleep 3
+              echo "Push collision on cluster ${{ matrix.cluster_id }}, rebasing..."
+              git pull --rebase origin main || git rebase --abort
+              sleep $((RANDOM % 5 + 3))
             done
+          fi
+
+  aggregate-keys-secondary:
+    name: Aggregate Secondary IFM Keys into Master
+    needs: [mass-ifm-harvester-secondary]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge Sharded Outputs into Master Logs
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main || true
+
+          shopt -s nullglob
+          ifm_files=(ifm_fleet_keys_cluster_*.jsonl)
+
+          if [ ${#ifm_files[@]} -gt 0 ]; then
+            cat "${ifm_files[@]}" >> ifm_fleet_keys.jsonl
+            git rm "${ifm_files[@]}"
+          fi
+
+          git add ifm_fleet_keys.jsonl 2>/dev/null || true
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto-harvest: Master IFM Fleet Key Aggregation (Secondary) [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]"
+            for attempt in {1..15}; do
+              if git push origin main; then
+                echo "Master aggregation pushed successfully on attempt $attempt"
+                break
+              fi
+              git pull --rebase origin main || git rebase --abort
+              sleep $((RANDOM % 4 + 2))
+            done
+          else
+            echo "No sharded files to aggregate."
           fi

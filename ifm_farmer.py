@@ -13,12 +13,12 @@ KEYS_OUT = Path("ifm_fleet_keys.jsonl")
 
 def log(msg):
     now = datetime.now(timezone.utc).strftime("%H:%M:%S")
-    print(f"[{now}] [IFM-FARM] {msg}", flush=True)
+    print(f"[{now}] [IFM-HYPER] {msg}", flush=True)
 
 def random_string(length=8):
     return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
 
-def fetch_inboxkitten_otp_or_link(recipient, timeout_sec=60):
+def fetch_inboxkitten_otp_or_link(recipient, timeout_sec=45):
     url = f"https://inboxkitten.com/api/v1/mail/list?recipient={recipient}"
     start = time.time()
     log(f"Polling inboxkitten for {recipient}@inboxkitten.com...")
@@ -44,27 +44,25 @@ def fetch_inboxkitten_otp_or_link(recipient, timeout_sec=60):
                         m = re.search(r'\b(\d{6})\b', r_body.text)
                         if m:
                             return {"type": "code", "val": m.group(1)}
-        except Exception as e:
+        except Exception:
             pass
-        time.sleep(4)
+        time.sleep(2)
     return None
 
-def farm_ifm(worker_id="1"):
-    from camoufox.sync_api import Camoufox
-
+def farm_ifm(browser, worker_id="1"):
     recipient = f"ronfarm_{worker_id}_{random_string(4)}"
     email = f"{recipient}@inboxkitten.com"
     password = f"FleetP@ss{random_string(6)}!"
     
     log(f"Starting IFM 10M Token/day minter for Worker {worker_id} ({email})...")
 
-    with Camoufox(headless=True, humanize=True, geoip=False) as browser:
-        context = browser.new_context(viewport={"width": 1280, "height": 900})
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    try:
         page = context.new_page()
 
         log("Navigating to https://platform.ifm.ai/signup?returnTo=%2Fdashboard ...")
-        page.goto("https://platform.ifm.ai/signup?returnTo=%2Fdashboard", timeout=60000, wait_until="domcontentloaded")
-        time.sleep(5)
+        page.goto("https://platform.ifm.ai/signup?returnTo=%2Fdashboard", timeout=45000, wait_until="domcontentloaded")
+        time.sleep(3)
 
         # Fill signup fields
         log("Filling registration form...")
@@ -77,35 +75,35 @@ def farm_ifm(worker_id="1"):
         if page.locator("#confirmPassword").count() > 0:
             page.locator("#confirmPassword").fill(password)
 
-        time.sleep(2)
+        time.sleep(1)
         submit_btn = page.locator("button:has-text('Create account')")
         if submit_btn.count() > 0:
             log("Clicking 'Create account'...")
             submit_btn.first.click()
-            time.sleep(6)
+            time.sleep(4)
 
         log(f"Current URL after submit: {page.url}")
 
         # Check for verification email
-        auth_action = fetch_inboxkitten_otp_or_link(recipient, timeout_sec=30)
+        auth_action = fetch_inboxkitten_otp_or_link(recipient, timeout_sec=35)
         if auth_action:
             if auth_action["type"] == "link":
                 log(f"Navigating to verification link: {auth_action['val']}")
-                page.goto(auth_action["val"], wait_until="domcontentloaded")
-                time.sleep(5)
+                page.goto(auth_action["val"], wait_until="domcontentloaded", timeout=30000)
+                time.sleep(3)
             elif auth_action["type"] == "code":
                 log(f"Entering verification code: {auth_action['val']}")
                 code_input = page.locator("input[name*='code'], input[type='text']").first
                 if code_input.count() > 0:
                     code_input.fill(auth_action["val"])
-                    time.sleep(1)
+                    time.sleep(0.5)
                     page.locator("button[type='submit']").click()
-                    time.sleep(5)
+                    time.sleep(3)
 
         # Navigate to API Keys page
         log("Navigating to API Keys console...")
         page.goto("https://platform.ifm.ai/dashboard/api-keys", timeout=30000, wait_until="domcontentloaded")
-        time.sleep(5)
+        time.sleep(3)
 
         # Attempt to create API Key
         create_btn = page.locator("button:has-text('Create Key'), button:has-text('New Key'), button:has-text('Generate')")
@@ -113,13 +111,13 @@ def farm_ifm(worker_id="1"):
         if create_btn.count() > 0:
             log("Clicking 'Create Key' button...")
             create_btn.first.click()
-            time.sleep(3)
+            time.sleep(2)
             # Check for name prompt if any
             name_input = page.locator("input[placeholder*='name'], input[placeholder*='Key']")
             if name_input.count() > 0:
                 name_input.fill("Fleet_9Router_Key")
                 page.locator("button:has-text('Create'), button:has-text('Confirm')").click()
-                time.sleep(3)
+                time.sleep(2)
             # Find generated key
             text = page.content()
             key_m = re.search(r'\b(ifm-[a-zA-Z0-9_\-]{24,64}|sk-[a-zA-Z0-9_\-]{24,64})\b', text)
@@ -140,7 +138,10 @@ def farm_ifm(worker_id="1"):
 
         with open(KEYS_OUT, "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
-        log(f"[✓] Harvest record logged: {record}")
+        log(f"[✓] Harvest record logged: {record['email']} ({record['daily_tokens']} tokens)")
+        return True
+    finally:
+        context.close()
 
 def main():
     parser = argparse.ArgumentParser()
@@ -155,12 +156,15 @@ def main():
     else:
         KEYS_OUT = Path(f"ifm_fleet_keys_cluster_{args.worker_id}.jsonl")
 
-    for i in range(args.count):
-        try:
-            farm_ifm(f"{args.worker_id}_{i+1}")
-        except Exception as e:
-            log(f"[-] Error: {e}")
-        time.sleep(2)
+    from camoufox.sync_api import Camoufox
+    log(f"Launching Camoufox Browser Engine for Cluster #{args.worker_id} (Target: {args.count} accounts)...")
+    with Camoufox(headless=True, humanize=False, geoip=False) as browser:
+        for i in range(args.count):
+            try:
+                farm_ifm(browser, f"{args.worker_id}_{i+1}")
+            except Exception as e:
+                log(f"[-] Error: {e}")
+            time.sleep(1)
 
 if __name__ == "__main__":
     main()
