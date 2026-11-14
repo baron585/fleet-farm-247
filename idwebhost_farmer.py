@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 DOMAINS_OUT = Path("fleet_domains.jsonl")
-PROMO_CODE = "30-mTsM-IDH"
+PROMO_CODE = "mt5MN0v-12"
 
 TLDS = [".my.id", ".web.id", ".biz.id"]
 
