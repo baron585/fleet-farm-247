@@ -32,6 +32,9 @@ jobs:
           cache: 'pip'
 
       - name: Install System Dependencies for Camoufox & Chromium
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xvfb
