@@ -8,7 +8,7 @@ on:
       count_per_cluster:
         description: 'Target akun per cluster'
         required: true
-        default: '10'
+        default: '35'
 
 permissions:
   contents: write
